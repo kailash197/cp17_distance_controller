@@ -31,9 +31,13 @@ endif()
 add_executable(eight_trajectory src/eight_trajectory.cpp)
 ament_target_dependencies(eight_trajectory rclcpp geometry_msgs nav_msgs std_msgs tf2)
 
+add_executable(distance_controller src/distance_controller.cpp)
+ament_target_dependencies(distance_controller rclcpp std_msgs geometry_msgs nav_msgs tf2)
+
 # Install the executable & launch
 install(TARGETS
   eight_trajectory
+  distance_controller
   DESTINATION lib/${PROJECT_NAME})
 
 
