@@ -7,6 +7,34 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <vector>
 
+class PID {
+public:
+  PID() : kp_(0.0), ki_(0.0), kd_(0.0), dt_(0.0) {}
+
+  PID(double kp, double ki, double kd, double dt)
+      : kp_(kp), ki_(ki), kd_(kd), dt_(dt), integral_(0.0), prev_error_(0.0) {}
+
+  double compute(double setpoint, double measurement) {
+    double error = setpoint - measurement;
+    integral_ += error * dt_;
+    double derivative = (error - prev_error_) / dt_;
+    double output = kp_ * error + ki_ * integral_ + kd_ * derivative;
+
+    prev_error_ = error;
+    return output;
+  }
+
+  double getError() { return prev_error_; }
+
+private:
+  double kp_;
+  double ki_;
+  double kd_;
+  double dt_;
+  double integral_;
+  double prev_error_;
+};
+
 using namespace std::chrono_literals;
 
 class DistanceController : public rclcpp::Node {
@@ -41,6 +69,9 @@ private:
   // Wheel speeds
   Eigen::Vector4d u;
 
+  PID pid_x_, pid_y_, pid_z_;
+  double time_step = 0.01; // in milliseconds
+
 public:
   DistanceController(int scene_number);
   ~DistanceController();
@@ -65,13 +96,15 @@ void DistanceController::odom_callback(
   phi = yaw;
 
   // Log the position and orientation for debugging
-  RCLCPP_DEBUG(this->get_logger(), "Position: [x: %f, y: %f, z: %f]",
-               current_position_.x, current_position_.y, current_position_.z);
-  RCLCPP_DEBUG(this->get_logger(), "Orientation (yaw): %f", phi);
+  RCLCPP_DEBUG(this->get_logger(),
+               "Position: [x: %f, y: %f, z: %f], Orientation (yaw): %f",
+               current_position_.x, current_position_.y, current_position_.z,
+               phi);
 }
 
 DistanceController::DistanceController(int scene_number)
     : Node("distance_controller_node"), scene_number_(scene_number) {
+
   timer_cb_grp_ =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   odom_cb_grp_ =
@@ -89,6 +122,10 @@ DistanceController::DistanceController(int scene_number)
 
   SelectWaypoints();
   max_velocity_ = 0.5;
+
+  pid_x_ = PID(1.0, 0.0, 0.0, time_step);
+  pid_y_ = PID(1.0, 0.0, 0.0, time_step);
+  pid_z_ = PID(1.0, 0.0, 0.0, time_step);
   RCLCPP_INFO(this->get_logger(), "Distance Controller Initialized.");
 
   timer_ = this->create_wall_timer(
@@ -96,35 +133,52 @@ DistanceController::DistanceController(int scene_number)
 }
 
 void DistanceController::pid_controller() {
-  double time_;
+  double u_x, u_y, u_z;
+  double dx, dy, dphi;
+  double sp_x, sp_y, sp_phi;
+  double distance;
   geometry_msgs::msg::Twist twist;
   RCLCPP_INFO(this->get_logger(), "Trajectory started.");
 
   // Loop through each waypoint
   for (const auto &waypoint : waypoints_) {
 
-    double dx = waypoint[0];
-    double dy = waypoint[1];
-    double dphi = waypoint[2];
+    dx = waypoint[0];
+    dy = waypoint[1];
+    dphi = waypoint[2];
+
+    sp_x = current_position_.x + dx;
+    sp_y = current_position_.y + dy;
+    sp_phi = phi + dphi;
 
     // Log the waypoint
     RCLCPP_INFO(this->get_logger(), "dx: %.2f, dy: %.2f, dp: %.2f", dx, dy,
                 dphi);
-    time_ = 1.0 / max_velocity_;
 
-    twist.linear.x = max_velocity_ * dx;    // v_x
-    twist.linear.y = max_velocity_ * dy;    // v_y
-    twist.angular.z = max_velocity_ * dphi; // ω_z
-    RCLCPP_INFO(this->get_logger(), "twist vx: %.2f, vy: %.2f, wz: %.2f",
-                twist.linear.x, twist.linear.y, twist.angular.z);
+    rclcpp::Rate rate(int(1 / time_step)); // Control loop frequency
+    distance = 0.0;
 
-    // Publish the Twist message for t second
-    auto start_time = this->now(); // Get the current time
-    while ((this->now() - start_time).seconds() < time_) { // Run for 1 second
-      cmd_vel_publisher_->publish(twist);                  // Publish the twist
-      std::this_thread::sleep_for(
-          std::chrono::milliseconds(250)); // delay to avoid overloading
-    }
+    do {
+      // PID calculation
+      u_x = pid_x_.compute(sp_x, current_position_.x);
+      u_y = pid_y_.compute(sp_y, current_position_.y);
+      u_z = pid_z_.compute(sp_phi, phi);
+
+      // Calculate distance to the target
+      distance = std::sqrt(std::pow(pid_x_.getError(), 2) +
+                           std::pow(pid_y_.getError(), 2));
+      RCLCPP_DEBUG(this->get_logger(), "Distance to target: %.2f", distance);
+      RCLCPP_DEBUG(this->get_logger(), "Position: %.2f,%.2f,%.2f", u_x, u_y,
+                   u_z);
+
+      // Prepare and publish the twist message
+      twist.linear.x = u_x;
+      twist.linear.y = u_y;
+      twist.angular.z = u_z;
+      cmd_vel_publisher_->publish(twist);
+
+      rate.sleep();            // Maintain loop frequency
+    } while (distance > 0.01); // Run until distance is within tolerance
   }
 
   RCLCPP_INFO(this->get_logger(), "Trajectory completed.");
@@ -168,7 +222,6 @@ void DistanceController::SelectWaypoints() {
         {-1.0, 1.0, 0.0},  // w8
         {1.0, 0.0, 0.0},   // w9
         {-1.0, 0.0, 0.0},  // w10
-        {0.0, 0.0, 0.0}    // Stop
     };
     break;
 
