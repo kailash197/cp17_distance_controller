@@ -127,10 +127,10 @@ DistanceController::DistanceController(int scene_number)
   Maximum translational velocity = 0.8 m/s
   Maximum rotational velocity = 180 deg/s (3.14 rad/s)
   */
-  max_velocity_ = 0.5;
-  max_ang_velocity_ = 2.5;
-  pid_x_ = PID(1.0, 0.0, 0.0, time_step);
-  pid_y_ = PID(1.0, 0.0, 0.0, time_step);
+  max_velocity_ = 0.8;
+  max_ang_velocity_ = 3.14;
+  pid_x_ = PID(1.0, 0.01, 0.20, time_step);
+  pid_y_ = PID(1.0, 0.01, 0.20, time_step);
   pid_z_ = PID(1.0, 0.0, 0.0, time_step);
   RCLCPP_INFO(this->get_logger(), "Distance Controller Initialized.");
 
@@ -194,6 +194,12 @@ void DistanceController::pid_controller() {
 
       rate.sleep();            // Maintain loop frequency
     } while (distance > 0.01); // Run until distance is within tolerance
+    // Now stop the bot
+    twist.linear.x = 0.0;
+    twist.linear.y = 0.0;
+    twist.angular.z = 0.0;
+    cmd_vel_publisher_->publish(twist);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
   }
 
   RCLCPP_INFO(this->get_logger(), "Trajectory completed.");
