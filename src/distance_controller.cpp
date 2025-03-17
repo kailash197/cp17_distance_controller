@@ -159,6 +159,13 @@ void DistanceController::pid_controller() {
     distance = 0.0;
 
     do {
+      if (!rclcpp::ok()) { // Check if ROS is still running
+        RCLCPP_WARN(this->get_logger(), "Trajectory Canceled.");
+        timer_->cancel();         // Stop the timer
+        odom_subscriber_.reset(); // Kill the odometry subscription
+        rclcpp::shutdown();
+        return;
+      }
       // PID calculation
       u_x = pid_x_.compute(sp_x, current_position_.x);
       u_y = pid_y_.compute(sp_y, current_position_.y);
