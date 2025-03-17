@@ -41,6 +41,7 @@ class DistanceController : public rclcpp::Node {
 private:
   int scene_number_;
   double max_velocity_;
+  double max_ang_velocity_;
   std::vector<std::vector<double>> waypoints_; //{dx, dy, dphi}
 
   void SelectWaypoints();
@@ -75,6 +76,7 @@ private:
 public:
   DistanceController(int scene_number);
   ~DistanceController();
+  std::vector<double> cap_velocities(double u_x, double u_y, double u_z);
 };
 
 DistanceController::~DistanceController() {
@@ -121,8 +123,12 @@ DistanceController::DistanceController(int scene_number)
       options);
 
   SelectWaypoints();
+  /* https://husarion.com/manuals/rosbot-xl/
+  Maximum translational velocity = 0.8 m/s
+  Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+  */
   max_velocity_ = 0.5;
-
+  max_ang_velocity_ = 2.5;
   pid_x_ = PID(1.0, 0.0, 0.0, time_step);
   pid_y_ = PID(1.0, 0.0, 0.0, time_step);
   pid_z_ = PID(1.0, 0.0, 0.0, time_step);
@@ -134,6 +140,7 @@ DistanceController::DistanceController(int scene_number)
 
 void DistanceController::pid_controller() {
   double u_x, u_y, u_z;
+  std::vector<double> capped_velocities;
   double dx, dy, dphi;
   double sp_x, sp_y, sp_phi;
   double distance;
@@ -179,9 +186,10 @@ void DistanceController::pid_controller() {
                    u_z);
 
       // Prepare and publish the twist message
-      twist.linear.x = u_x;
-      twist.linear.y = u_y;
-      twist.angular.z = u_z;
+      capped_velocities = cap_velocities(u_x, u_y, u_z);
+      twist.linear.x = capped_velocities[0];
+      twist.linear.y = capped_velocities[1];
+      twist.angular.z = capped_velocities[2];
       cmd_vel_publisher_->publish(twist);
 
       rate.sleep();            // Maintain loop frequency
@@ -251,6 +259,25 @@ void DistanceController::SelectWaypoints() {
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
   }
+}
+
+std::vector<double> DistanceController::cap_velocities(double u_x, double u_y,
+                                                       double u_z) {
+  // Cap linear velocities
+  double linear_velocity_magnitude = std::sqrt(u_x * u_x + u_y * u_y);
+  if (linear_velocity_magnitude > max_velocity_) {
+    double scale_factor = max_velocity_ / linear_velocity_magnitude;
+    u_x *= scale_factor;
+    u_y *= scale_factor;
+  }
+
+  // Cap angular velocity
+  if (std::abs(u_z) > max_ang_velocity_) {
+    u_z = (u_z > 0 ? max_ang_velocity_ : -max_ang_velocity_);
+  }
+
+  // Return capped velocities
+  return {u_x, u_y, u_z};
 }
 
 int main(int argc, char **argv) {
