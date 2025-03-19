@@ -123,14 +123,9 @@ DistanceController::DistanceController(int scene_number)
       options);
 
   SelectWaypoints();
-  /* https://husarion.com/manuals/rosbot-xl/
-  Maximum translational velocity = 0.8 m/s
-  Maximum rotational velocity = 180 deg/s (3.14 rad/s)
-  */
-  max_velocity_ = 0.8;
-  max_ang_velocity_ = 3.14;
+
   pid_x_ = PID(1.0, 0.01, 0.20, time_step);
-  pid_y_ = PID(1.0, 0.01, 0.20, time_step);
+  pid_y_ = PID(1.5, 0.01, 0.20, time_step);
   pid_z_ = PID(1.0, 0.0, 0.0, time_step);
   RCLCPP_INFO(this->get_logger(), "Distance Controller Initialized.");
 
@@ -143,7 +138,7 @@ void DistanceController::pid_controller() {
   std::vector<double> capped_velocities;
   double dx, dy, dphi;
   double sp_x, sp_y, sp_phi;
-  double distance;
+  double distance, tol_distance = 0.025;
   geometry_msgs::msg::Twist twist;
   RCLCPP_INFO(this->get_logger(), "Trajectory started.");
 
@@ -192,8 +187,8 @@ void DistanceController::pid_controller() {
       twist.angular.z = capped_velocities[2];
       cmd_vel_publisher_->publish(twist);
 
-      rate.sleep();            // Maintain loop frequency
-    } while (distance > 0.01); // Run until distance is within tolerance
+      rate.sleep();                    // Maintain loop frequency
+    } while (distance > tol_distance); // Run until distance is within tolerance
     // Now stop the bot
     twist.linear.x = 0.0;
     twist.linear.y = 0.0;
@@ -231,6 +226,12 @@ void DistanceController::SelectWaypoints() {
   case 1: // Simulation
     // Assign waypoints for Simulation
     RCLCPP_INFO(this->get_logger(), "Welcome to Simulation!");
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.5;
+    max_ang_velocity_ = 2.5;
     // Waypoints: {dx,dy,dphi}
     waypoints_ = {
         {0.0, 1.0, 0.0},   // w1
@@ -249,16 +250,17 @@ void DistanceController::SelectWaypoints() {
   case 2: // CyberWorld
     // Assign waypoints for CyberWorld
     RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld!");
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.35;
+    max_ang_velocity_ = 2.0;
     waypoints_ = {
-        {0.0, 1.0, -1.0},      // w1
-        {0.0, 1.0, 1.0},       // w2
-        {0.0, 1.0, 1.0},       // w3
-        {-1.5708, 1.0, -1.0},  // w4
-        {-1.5708, -1.0, -1.0}, // w5
-        {0.0, -1.0, 1.0},      // w6
-        {0.0, -1.0, 1.0},      // w7
-        {0.0, -1.0, -1.0},     // w8
-        {0.0, 0.0, 0.0}        // Stop
+        {+0.975, +0.000, +0.000}, // w1
+        {+0.000, -0.500, +0.000}, // w2
+        {+0.000, +0.500, +0.000}, // w3
+        {-0.975, +0.000, +0.000}, // w4
     };
     break;
 
