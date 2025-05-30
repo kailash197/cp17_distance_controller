@@ -189,7 +189,7 @@ void DistanceController::pid_controller() {
     cmd_vel.linear.y = 0.0;
     cmd_vel.angular.z = 0.0;
     cmd_vel_publisher_->publish(cmd_vel);
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(2));
   }
 
   RCLCPP_INFO(this->get_logger(), "Trajectory completed.");
@@ -263,8 +263,8 @@ void DistanceController::SelectWaypoints() {
     Maximum translational velocity = 0.8 m/s
     Maximum rotational velocity = 180 deg/s (3.14 rad/s)
     */
-    max_velocity_ = 0.25;
-    max_ang_velocity_ = 0.25;
+    max_velocity_ = 0.6;
+    max_ang_velocity_ = 2.0;
     waypoints_ = {
         // check for angles
         {0.940, 0.0, 0.0},  // w1
