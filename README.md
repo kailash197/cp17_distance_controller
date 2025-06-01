@@ -1,4 +1,4 @@
-# PID Distance Controller for ROSBot XL
+# Distance Controller for Robot Control using ROSBot XL
 
 This project involves designing and implementing a PID (Proportional-Integral-Derivative) controller to enable the ROSBot XL mobile robot to move precisely to predefined waypoints in the XY plane. The controller ensures the robot moves at high speed while avoiding overshooting or falling short of the target distance.
 
@@ -36,35 +36,72 @@ The controller is tested in both simulation (Gazebo) and the real-world environm
 ---
 
 ## **Setup Instructions**
+1. Clone this package to your ROS2 workspace `src` directory
+    ```bash
+    mkdir -p ~/ros2_ws/src
+    git clone https://github.com/kailash197/cp17_distance_controller.git distance_controller
+    ```
 
-1. **Build the ROS2 Workspace**
+2. **Build the ROS2 Workspace**
    ```bash
    cd ~/ros2_ws
-   colcon build
+   colcon build --packages-select distance_controller
    source install/setup.bash
    ```
 
-3. **Run Simulation**
-   - Launch the empty Gazebo world:
-     ```bash
-     ros2 launch rosbot_xl_gazebo empty_simulation.launch.py
-     ```
+## Usage (Task1: Simulation)
+1. Start the simulation:
+   ```bash
+   source ~/ros2_ws/install/setup.bash
+   ros2 launch rosbot_xl_gazebo empty_simulation.launch.py
+   ```
+2. Run the turn controller:
+    ```bash
+    cd ~/ros2_ws/src/distance_controller
+    git checkout task1
+    cd ~/ros2_ws && colcon build --packages-select distance_controller  && source install/setup.bash
+    source ~/ros2_ws/install/setup.bash && ros2 run distance_controller distance_controller
+   ```
 
-4. **Run the Distance Controller**
-   - Execute the distance controller:
-     ```bash
-     ros2 run distance_controller distance_controller
-     ```
+## Usage (Task2: Real Robot)
+1. Connect to real robot
 
-5. **Real Robot Testing**
-   - Book a session in the Cyberworld real robot lab.
-   - Modify the waypoints for the real-world environment.
-   - Run the controller with the real robot:
-     ```bash
-     ros2 run distance_controller distance_controller 2
-     ```
+2. Run the turn controller:
+   ```bash
+    cd ~/ros2_ws/src/distance_controller
+    git checkout task2
+    cd ~/ros2_ws && colcon build --packages-select distance_controller  && source install/setup.bash
+    source ~/ros2_ws/install/setup.bash && ros2 run distance_controller distance_controller 2
+   ```
 
----
+## Useful Commands:
+
+#### View orientation
+```bash
+ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose.orientation
+```
+
+#### Create tags
+```bash
+git tag <tagname> <commit-id>
+```
+
+#### View tags
+```bash
+git tag
+git ls-remote --tags origin # remote tags
+```
+
+#### Push tags
+```bash
+git push origin --tags
+```
+
+#### Remove tags
+```bash
+git tag -d <tagname>
+git push origin --delete <tagname>  # Delete remotely
+```
 
 ## **Implementation Details**
 
@@ -88,4 +125,3 @@ The controller is tested in both simulation (Gazebo) and the real-world environm
 
 ## **License**
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-```
